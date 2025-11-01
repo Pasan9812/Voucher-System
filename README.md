@@ -1,2 +1,2 @@
 # Voucher-System
-Ekrain Technologies &amp; Solutions(Pvt) LTD - Voucher Sstem
+Ekrain Technologies &amp; Solutions(Pvt) LTD - Voucher System
