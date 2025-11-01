@@ -1,0 +1,623 @@
+
+http://localhost:8080/expenses%20system/index.php
+
+
+CREATE DATABASE voucher_system;
+
+USE voucher_system;
+
+CREATE TABLE vouchers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    date DATE NOT NULL,
+    payer VARCHAR(255) NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    expense_title VARCHAR(255) NOT NULL
+);
+
+ALTER TABLE vouchers
+ADD COLUMN payer_email VARCHAR(255) NOT NULL;
+
+ALTER TABLE vouchers
+ADD COLUMN otp_status VARCHAR(50) NOT NULL;
+
+ALTER TABLE vouchers
+ADD COLUMN cashback_amount DECIMAL(10, 2) DEFAULT NULL,
+ADD COLUMN cashback_status ENUM('Pending', 'Completed') DEFAULT 'Pending';
+
+ALTER TABLE vouchers ADD COLUMN description TEXT;
+
+
+
+
+<!-- db.php -->
+<?php
+// Database connection details
+$servername = "localhost"; // Usually "localhost" for local servers
+$username = "root";        // Default username for XAMPP is "root"
+$password = "";            // Default password for XAMPP is empty
+$dbname = "voucher_system"; // Your database name
+
+// Create a connection
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+// Check connection
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+?>
+
+
+
+<!-- navbar.php -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Vouchers</title>
+    <link rel="stylesheet" href="navbar.css">
+</head>
+<nav>
+    <ul>
+        <li><a href="index.php">Home</a></li>
+        <li><a href="create_voucher.php">Create Voucher</a></li>
+        <li><a href="view_vouchers.php">View Vouchers</a></li>
+        <li><a href="monthly_report.php">Monthly Report</a></li>
+    </ul>
+</nav>
+
+
+
+
+
+
+
+
+
+<!-- index.php -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voucher System</title>
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+    <!-- Include the Navbar -->
+    <?php include('navbar.php'); ?>
+
+    <div class="content">
+        <h2>Welcome to the Voucher System</h2>
+        <p>Use this system to create vouchers, view existing vouchers, and generate monthly reports.</p>
+    </div>
+
+</body>
+</html>
+
+
+<!-- create_voucher.php -->
+<?php
+// Include the database connection
+include('db.php');
+
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $date = $_POST['date'];
+    $payer = $_POST['payer'];
+    $amount = $_POST['amount'];
+    $expense_title = $_POST['expense_title'];
+
+    $sql = "INSERT INTO vouchers (date, payer, amount, expense_title) 
+            VALUES ('$date', '$payer', '$amount', '$expense_title')";
+
+    if ($conn->query($sql) === TRUE) {
+        echo "New voucher added successfully.";
+    } else {
+        echo "Error: " . $sql . "<br>" . $conn->error;
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Voucher</title>
+    <link rel="stylesheet" href="create_voucher.css">
+</head>
+<body>
+    <?php include('navbar.php'); ?>
+    <div class="content">
+        <h2>Create a New Voucher</h2>
+        <form action="create_voucher.php" method="post">
+            <label for="date">Date:</label>
+            <input type="date" name="date" required><br><br>
+            <label for="payer">Payer:</label>
+            <input type="text" name="payer" required><br><br>
+            <label for="amount">Amount:</label>
+            <input type="number" name="amount" step="0.01" required><br><br>
+            <label for="expense_title">Expense Title:</label>
+            <select name="expense_title" required>
+            <option value="Fuel">Fuel</option>
+            <option value="Food">Food</option>
+            <option value="Purchasing">Purchasing</option>
+            <option value="Salary">Salary</option>
+            <option value="Salary Advance">Salary Advance</option>
+            <option value="Office upkeeping">Office upkeeping</option>
+            <option value="Postal charges">Postal charges</option>
+            <option value="Travelling">Travelling</option>
+            <option value="Technical repairs">Technical repairs</option>
+            <option value="Vehicle maintain">Vehicle maintain</option>
+            <option value="Drinking water">Drinking water</option>
+            <option value="Mobitel bill">Mobitel bill</option>
+            <option value="Dialog bill">Dialog bill</option>
+            <option value="Building rent">Building rent</option>
+            <option value="Electricity bill">Electricity bill</option>
+            <option value="Water bill">Water bill</option>
+            <option value="Transport">Transport</option>
+            <option value="Donation">Donation</option>
+            <option value="Promotion">Promotion</option>
+            <option value="Rent">Rent</option>
+            <option value="Advertising">Advertising</option>
+            <option value="Commission">Commission</option>
+            <option value="Loan">Loan</option>
+            <option value="Car Finance">Car Finance</option>
+            <option value="Insurance">Insurance</option>
+            </select><br><br>
+            <input type="submit" value="Submit">
+        </form>
+    </div>
+</body>
+</html>
+
+
+
+
+<!-- monthly_report.php -->
+<head>
+    <link rel="stylesheet" href="monthly_report.css">
+</head>
+
+<?php
+include('db.php');
+include('navbar.php');  // Include the navigation bar
+
+// Fetch all distinct payers to populate the dropdown
+$payers_sql = "SELECT DISTINCT payer FROM vouchers ORDER BY payer ASC";
+$payers_result = $conn->query($payers_sql);
+
+// Check if a month parameter is provided
+if (isset($_GET['month'])) {
+    $month = trim($_GET['month']);
+    $payer = isset($_GET['payer']) ? trim($_GET['payer']) : null;
+
+    // Validate month format
+    if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+        die("Invalid month format. Please use YYYY-MM.");
+    }
+
+    // Check if payer is specified
+    if (!empty($payer)) {
+        // Generate report for the specific payer
+        $sql = "SELECT expense_title, SUM(amount) AS total_amount 
+                FROM vouchers 
+                WHERE DATE_FORMAT(date, '%Y-%m') = ? AND payer = ? 
+                GROUP BY expense_title 
+                ORDER BY expense_title ASC";
+
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param('ss', $month, $payer);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $total_expenses = 0;
+
+        echo "<h2>Expense Report for $payer in $month</h2>";
+
+        if ($result->num_rows > 0) {
+            echo "<table border='1'>
+                    <tr>
+                        <th>Expense Title</th>
+                        <th>Total Amount</th>
+                    </tr>";
+
+            while ($row = $result->fetch_assoc()) {
+                echo "<tr>
+                        <td>" . htmlspecialchars($row['expense_title']) . "</td>
+                        <td>" . number_format($row['total_amount'], 2) . "</td>
+                      </tr>";
+                $total_expenses += $row['total_amount'];
+            }
+
+            echo "<tr>
+                    <td><strong>Total Expenses</strong></td>
+                    <td><strong>" . number_format($total_expenses, 2) . "</strong></td>
+                  </tr>";
+            echo "</table>";
+        } else {
+            echo "<p>No records found for $payer in the selected month.</p>";
+        }
+
+        $stmt->close();
+    } else {
+        // Generate monthly report for all payers
+        $sql = "SELECT expense_title, SUM(amount) AS total_amount 
+                FROM vouchers 
+                WHERE DATE_FORMAT(date, '%Y-%m') = ? 
+                GROUP BY expense_title 
+                ORDER BY expense_title ASC";
+
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param('s', $month);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $total_expenses = 0;
+
+        echo "<h2>Monthly Expense Report for $month</h2>";
+
+        if ($result->num_rows > 0) {
+            echo "<table border='1'>
+                    <tr>
+                        <th>Expense Title</th>
+                        <th>Total Amount</th>
+                    </tr>";
+
+            while ($row = $result->fetch_assoc()) {
+                echo "<tr>
+                        <td>" . htmlspecialchars($row['expense_title']) . "</td>
+                        <td>" . number_format($row['total_amount'], 2) . "</td>
+                      </tr>";
+                $total_expenses += $row['total_amount'];
+            }
+
+            echo "<tr>
+                    <td><strong>Total Expenses</strong></td>
+                    <td><strong>" . number_format($total_expenses, 2) . "</strong></td>
+                  </tr>";
+            echo "</table>";
+        } else {
+            echo "<p>No records found for the selected month.</p>";
+        }
+
+        $stmt->close();
+    }
+} else {
+    echo "<p>Please select a month to generate the report.</p>";
+}
+
+$conn->close();
+?>
+
+<form method="GET" action="monthly_report.php">
+    <label for="month">Select Month:</label>
+    <input type="month" id="month" name="month" required>
+
+    
+
+    <label for="payer">Select Payer (Optional):</label>
+    <select id="payer" name="payer">
+        <option value="">-- All Payers --</option>
+        <?php
+        // Populate dropdown with distinct payers
+        if ($payers_result->num_rows > 0) {
+            while ($row = $payers_result->fetch_assoc()) {
+                echo "<option value=\"" . htmlspecialchars($row['payer']) . "\">" . htmlspecialchars($row['payer']) . "</option>";
+            }
+        }
+        ?>
+    </select>
+
+    <button type="submit">Generate Report</button>
+</form>
+
+
+
+
+<!-- view_vouchers.php -->
+<?php
+// Include the database connection
+include('db.php');
+
+// Fetch all vouchers
+$sql = "SELECT id, date, payer, amount, expense_title FROM vouchers";
+$result = $conn->query($sql);
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Vouchers</title>
+    <link rel="stylesheet" href="view_voucher.css">
+</head>
+<body>
+    <?php include('navbar.php'); ?>
+    <div class="content">
+        <h2>All Vouchers</h2>
+        <?php
+        if ($result->num_rows > 0) {
+            echo "<table border='1'>
+                    <tr>
+                        <th>Voucher No</th>
+                        <th>Date</th>
+                        <th>Payer</th>
+                        <th>Amount</th>
+                        <th>Expense Title</th>
+                    </tr>";
+            while($row = $result->fetch_assoc()) {
+                echo "<tr>
+                        <td>" . $row['id'] . "</td>
+                        <td>" . $row['date'] . "</td>
+                        <td>" . $row['payer'] . "</td>
+                        <td>" . $row['amount'] . "</td>
+                        <td>" . $row['expense_title'] . "</td>
+                      </tr>";
+            }
+            echo "</table>";
+        } else {
+            echo "<p>No vouchers found.</p>";
+        }
+        $conn->close();
+        ?>
+    </div>
+</body>
+</html>
+
+
+
+
+
+
+---- old create voucher.php ----
+<?php
+include('db.php');
+session_start();
+require 'vendor/autoload.php'; // Include PHPMailer
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+// Step 1: Handle form submission to send OTP
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_otp'])) {
+    $date = $_POST['date'];
+    $payer = $_POST['payer'];
+    $payer_email = $_POST['payer_email'];
+    $amount = $_POST['amount'];
+    $expense_title = $_POST['expense_title'];
+
+    // Store form data in the session
+    $_SESSION['date'] = $date;
+    $_SESSION['payer'] = $payer;
+    $_SESSION['payer_email'] = $payer_email;
+    $_SESSION['amount'] = $amount;
+    $_SESSION['expense_title'] = $expense_title;
+
+    // Generate OTP
+    $otp = rand(100000, 999999);
+    $_SESSION['otp'] = $otp;
+
+    // Send OTP using PHPMailer
+    $mail = new PHPMailer(true);
+
+    try {
+        $mail->isSMTP();
+        $mail->Host = 'smtp.gmail.com'; // Replace with your SMTP host
+        $mail->SMTPAuth = true;
+        $mail->Username = 'ekrainglobal@gmail.com'; // Replace with your email
+        $mail->Password = 'xlfj yhfm zzsf sobj'; // Replace with your email password
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port = 587;
+
+        // Sender and recipient
+        $mail->setFrom('ekrainglobal@gmail.com', 'Voucher System');
+        $mail->addAddress($payer_email);
+
+        // Email content
+        $mail->isHTML(true);
+        $mail->Subject = 'Your OTP for Voucher Submission';
+        $mail->Body = "<p>Your OTP is: <strong>$otp</strong></p>";
+
+        $mail->send();
+        $_SESSION['otp_sent'] = true; // Mark OTP as sent
+    } catch (Exception $e) {
+        echo "Error sending OTP: " . $mail->ErrorInfo;
+    }
+}
+
+// Step 2: Handle OTP verification
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_otp'])) {
+    $entered_otp = $_POST['otp'];
+
+    if ($entered_otp == $_SESSION['otp']) {
+        // Save voucher to the database
+        $date = $_SESSION['date'];
+        $payer = $_SESSION['payer'];
+        $payer_email = $_SESSION['payer_email'];
+        $amount = $_SESSION['amount'];
+        $expense_title = $_SESSION['expense_title'];
+
+        $sql = "INSERT INTO vouchers (date, payer, payer_email, amount, expense_title, otp_status) 
+                VALUES ('$date', '$payer', '$payer_email', '$amount', '$expense_title', 'Verified')";
+
+        if ($conn->query($sql) === TRUE) {
+            echo "Voucher added successfully.";
+            // Clear session data
+            session_destroy();
+        } else {
+            echo "Error: " . $sql . "<br>" . $conn->error;
+        }
+    } else {
+        echo "Invalid OTP. Please try again.";
+    }
+}
+
+// Handle session reset (Back to Create Voucher Form)
+if (isset($_GET['reset'])) {
+    session_destroy();
+    header("Location: create_voucher.php");
+    exit();
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Voucher</title>
+    <link rel="stylesheet" href="create_voucher.css">
+</head>
+<body>
+    <?php include('navbar.php'); ?>
+    <div class="content">
+        <h2>Create a New Voucher</h2>
+
+        <?php if (!isset($_SESSION['otp_sent'])): ?>
+            <!-- Step 1: Voucher Form -->
+            <form action="create_voucher.php" method="post">
+                <label for="date">Date:</label>
+                <input type="date" name="date" required><br><br>
+                <label for="payer">Payer:</label>
+                <input type="text" name="payer" required><br><br>
+                <label for="payer_email">Payer Email:</label>
+                <input type="email" name="payer_email" required><br><br>
+                <label for="amount">Amount:</label>
+                <input type="number" name="amount" step="0.01" required><br><br>
+                <label for="expense_title">Expense Title:</label>
+                <select name="expense_title" required>
+                    <option value="Fuel">Fuel</option>
+                    <option value="Food">Food</option>
+                    <option value="Purchasing">Purchasing</option>
+                    <option value="Salary">Salary</option>
+                    <option value="Salary Advance">Salary Advance</option>
+                    <option value="Office upkeeping">Office upkeeping</option>
+                    <option value="Postal charges">Postal charges</option>
+                    <option value="Travelling">Travelling</option>
+                    <option value="Technical repairs">Technical repairs</option>
+                    <option value="Vehicle maintain">Vehicle maintain</option>
+                    <option value="Drinking water">Drinking water</option>
+                    <option value="Mobitel bill">Mobitel bill</option>
+                    <option value="Dialog bill">Dialog bill</option>
+                    <option value="Building rent">Building rent</option>
+                    <option value="Electricity bill">Electricity bill</option>
+                    <option value="Water bill">Water bill</option>
+                    <option value="Transport">Transport</option>
+                    <option value="Donation">Donation</option>
+                    <option value="Promotion">Promotion</option>
+                    <option value="Rent">Rent</option>
+                    <option value="Advertising">Advertising</option>
+                    <option value="Commission">Commission</option>
+                    <option value="Loan">Loan</option>
+                    <option value="Car Finance">Car Finance</option>
+                    <option value="Insurance">Insurance</option>
+                </select><br><br>
+                <button type="submit" name="send_otp">Send OTP</button>
+            </form>
+        <?php else: ?>
+            <!-- Step 2: OTP Verification Form -->
+            <form action="create_voucher.php" method="post">
+                <label for="otp">Enter OTP:</label>
+                <input type="number" name="otp" required><br><br>
+                <button type="submit" name="verify_otp">Verify OTP</button>
+            </form>
+            <br>
+            <a href="create_voucher.php?reset=true">Back to Create Voucher</a>
+        <?php endif; ?>
+    </div>
+</body>
+</html>
+
+
+
+
+<---- Complete Voucher Part------>
+<head>
+    <link rel="stylesheet" href="complete_voucher.css">
+    <title>Complete Voucher</title>
+</head>
+
+
+<?php
+
+// Include database connection
+include('db.php');
+
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $voucher_id = intval($_POST['voucher_id']);
+    $cashback_amount = floatval($_POST['cashback_amount']);
+
+    // Update the voucher
+    $sql = "UPDATE vouchers SET cashback_amount = ?, cashback_status = 'Completed' WHERE id = ? AND cashback_status = 'Pending'";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("di", $cashback_amount, $voucher_id);
+
+    if ($stmt->execute()) {
+        $message = "Voucher updated successfully!";
+    } else {
+        $message = "Error updating voucher: " . $conn->error;
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Voucher</title>
+    <link rel="stylesheet" href="navbar.css">
+    <style>
+        .form-container {
+            width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            background-color: #f9f9f9;
+        }
+        input[type="number"], input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        input[type="submit"] {
+            padding: 10px 20px;
+            background-color: green;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .message {
+            text-align: center;
+            font-weight: bold;
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <?php include('navbar.php'); ?>
+
+    <div class="form-container">
+        <h2>Complete Pending Voucher</h2>
+
+        <?php if (!empty($message)) { echo "<p class='message'>$message</p>"; } ?>
+
+        <form method="POST">
+            <label for="voucher_id">Enter Voucher No:</label>
+            <input type="number" id="voucher_id" name="voucher_id" required>
+
+            <label for="cashback_amount">Enter Cashback Amount:</label>
+            <input type="text" id="cashback_amount" name="cashback_amount" required>
+
+            <input type="submit" value="Submit">
+        </form>
+    </div>
+</body>
+</html>
+
+
+
+
